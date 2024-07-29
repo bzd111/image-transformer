@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-transform-webhook
+  namespace: default
+  labels:
+    app: image-transform-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: image-transform-webhook
+  template:
+    metadata:
+      labels:
+        app: image-transform-webhook
+    spec:
+      volumes:
+        - name: cert
+          secret:
+            secretName: webhook-tls
+      containers:
+        - name: image-transform-webhook
+          livenessProbe:
+            tcpSocket:
+              port: 9443
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 9443
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            periodSeconds: 10
+          volumeMounts:
+            - name: cert
+              mountPath: /tmp/k8s-webhook-server/serving-certs
+              readOnly: true
+          command:
+            - "/app/webhook"
+          args:
+            - "--cert-dir"
+            - "/tmp/k8s-webhook-server/serving-certs"
+          image: docker.io/zidy/image-transform-webhook:0.0.1
+          resources:
+            requests:
+              cpu: 500m
+              memory: 500Mi
+          ports:
+            - containerPort: 9443
+          env:
+            - name: ORIGINAL_REPO
+              value: docker.io,gcr.io,ghcr.io,registry.k8s.io
+            - name: NEW_REPO
+              value: m.daocloud.io

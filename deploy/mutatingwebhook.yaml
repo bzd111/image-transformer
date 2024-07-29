@@ -1,0 +1,22 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: image-transform-webhook
+  annotations:
+    cert-manager.io/inject-ca-from: default/webhook-tls
+webhooks:
+  - name: image-transform-webhook.default.svc
+    clientConfig:
+      caBundle: "" # Let cert-manager inject this
+      service:
+        name: image-transform-webhook
+        namespace: default
+        path: "/mutate-v1-pod"
+    rules:
+      - operations: ["CREATE", "UPDATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions: ["v1", "v1beta1"]
