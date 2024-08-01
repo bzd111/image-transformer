@@ -11,7 +11,7 @@ webhooks:
       service:
         name: image-transform-webhook
         namespace: default
-        path: "/mutate-v1-pod"
+        path: "/mutate--v1-pod"
     rules:
       - operations: ["CREATE", "UPDATE"]
         apiGroups: [""]

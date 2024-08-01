@@ -32,3 +32,5 @@ go.work.sum
 *.swp
 *.swo
 *~
+
+./mydeploy/

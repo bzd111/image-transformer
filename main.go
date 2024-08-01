@@ -56,7 +56,7 @@ func main() {
 	}
 }
 
-// +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=fail,groups="",resources=pods,verbs=create;update,versions=v1,name=mpod.kb.io
+// +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=fail,groups="",resources=pods,verbs=create;update,versions=v1,image-transform-webhook
 type imageTransformer struct {
 	NewRepo       string
 	OriginalRepos []string
@@ -88,17 +88,33 @@ func (a *imageTransformer) Default(ctx context.Context, obj runtime.Object) erro
 		return fmt.Errorf("expected a Pod but got a %T", obj)
 	}
 
+	changed := false
+
 	for i, container := range pod.Spec.Containers {
 		for _, originalRepo := range a.OriginalRepos {
+			newImage := ""
 			if !strings.Contains(container.Image, "/") {
 				// busybox:latest -> m.daocloud.io/docker.io/library/busybox:latest
-				newImage := fmt.Sprintf("%s/docker.io/library/%s", a.NewRepo, container.Image)
-				pod.Spec.Containers[i].Image = newImage
+				newImage = fmt.Sprintf("%s/docker.io/library/%s", a.NewRepo, container.Image)
+			} else if strings.Count(container.Image, "/") == 1 {
+				//  grafana/loki:2.0.0 -> m.daocloud.io/docker.io/grafana/loki:2.0.0
+				newImage = fmt.Sprintf("%s/docker.io/%s", a.NewRepo, container.Image)
 			} else if strings.HasPrefix(container.Image, originalRepo) {
 				// docker.io/busybox:latest -> m.daocloud.io/docker.io/busybox:latest
-				newImage := fmt.Sprintf("%s/%s", a.NewRepo, container.Image)
+				newImage = fmt.Sprintf("%s/%s", a.NewRepo, container.Image)
+			}
+			if newImage != "" {
+				changed = true
 				pod.Spec.Containers[i].Image = newImage
 			}
+		}
+	}
+
+	if changed && os.Getenv("WITH_SECRET") == "True" {
+		pod.Spec.ImagePullSecrets = []corev1.LocalObjectReference{
+			{
+				Name: os.Getenv("SECRET_NAME"),
+			},
 		}
 	}
 

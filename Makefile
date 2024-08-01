@@ -1,9 +1,9 @@
 build:
-	docker build -t zidy/image-transform:0.1 .
+	docker build -t zidy/image-transform:0.3 .
 
-deploy:	
+apply:	
 	kubectl apply -f deploy
 
-clean:	
-	kubectl clean -f deploy
+delete:	
+	kubectl delete -f deploy
 
