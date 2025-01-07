@@ -92,19 +92,8 @@ func (a *imageTransformer) Default(ctx context.Context, obj runtime.Object) erro
 
 	for i, container := range pod.Spec.Containers {
 		for _, originalRepo := range a.OriginalRepos {
-			newImage := ""
-			if !strings.Contains(container.Image, "/") {
-				// busybox:latest -> m.daocloud.io/docker.io/library/busybox:latest
-				newImage = fmt.Sprintf("%s/docker.io/library/%s", a.NewRepo, container.Image)
-			} else if strings.Count(container.Image, "/") == 1 {
-				//  grafana/loki:2.0.0 -> m.daocloud.io/docker.io/grafana/loki:2.0.0
-				newImage = fmt.Sprintf("%s/docker.io/%s", a.NewRepo, container.Image)
-			} else if strings.HasPrefix(container.Image, originalRepo) {
-				// docker.io/busybox:latest -> m.daocloud.io/docker.io/busybox:latest
-				newImage = fmt.Sprintf("%s/%s", a.NewRepo, container.Image)
-			}
-			if newImage != "" {
-				changed = true
+			newImage, changed := needChangeImage(container.Image, a.NewRepo, originalRepo)
+			if changed {
 				pod.Spec.Containers[i].Image = newImage
 			}
 		}
@@ -120,4 +109,17 @@ func (a *imageTransformer) Default(ctx context.Context, obj runtime.Object) erro
 
 	logf.Info("image transformed")
 	return nil
+}
+
+// needChangeImage checks if the image needs to be changed
+func needChangeImage(image, newRepo, originalRepo string) (string, bool) {
+	newImage := ""
+
+	if strings.HasPrefix(image, originalRepo) || strings.Count(image, "/") == 1 || !strings.Contains(image, "/") {
+		// docker.io/busybox:latest -> aaa.bbb.ccc/docker.io/busybox:latest
+		// grafana/loki:2.0.0 -> aaa.bbb.ccc/grafana/loki:2.0.0
+		// busybox:latest -> aaa.bbb.ccc/busybox:latest
+		newImage = fmt.Sprintf("%s/%s", newRepo, image)
+	}
+	return newImage, newImage != ""
 }
