@@ -88,18 +88,15 @@ func (a *imageTransformer) Default(ctx context.Context, obj runtime.Object) erro
 		return fmt.Errorf("expected a Pod but got a %T", obj)
 	}
 
-	changed := false
+	var initChanged, tempChanged bool
 
-	for i, container := range pod.Spec.Containers {
-		for _, originalRepo := range a.OriginalRepos {
-			newImage, changed := needChangeImage(container.Image, a.NewRepo, originalRepo)
-			if changed {
-				pod.Spec.Containers[i].Image = newImage
-			}
-		}
-	}
+	// change init image
+	pod.Spec.InitContainers, initChanged = a.modifyContainers(pod.Spec.InitContainers)
 
-	if changed && os.Getenv("WITH_SECRET") == "True" {
+	// change template image
+	pod.Spec.Containers, tempChanged = a.modifyContainers(pod.Spec.Containers)
+
+	if (initChanged || tempChanged) && os.Getenv("WITH_SECRET") == "True" {
 		pod.Spec.ImagePullSecrets = []corev1.LocalObjectReference{
 			{
 				Name: os.Getenv("SECRET_NAME"),
@@ -109,6 +106,20 @@ func (a *imageTransformer) Default(ctx context.Context, obj runtime.Object) erro
 
 	logf.Info("image transformed")
 	return nil
+}
+
+// modifyContainers modifies the containers
+func (a *imageTransformer) modifyContainers(containers []corev1.Container) ([]corev1.Container, bool) {
+	changed := false
+	for i, container := range containers {
+		for _, originalRepo := range a.OriginalRepos {
+			newImage, changed := needChangeImage(container.Image, a.NewRepo, originalRepo)
+			if changed {
+				containers[i].Image = newImage
+			}
+		}
+	}
+	return containers, changed
 }
 
 // needChangeImage checks if the image needs to be changed
